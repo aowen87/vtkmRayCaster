@@ -26,7 +26,6 @@
 #include <vtkPNGWriter.h>
 
 
-
 #include <vtkm/cont/ArrayHandle.h>
 #include <vtkm/cont/ArrayHandleIndex.h>
 #include <vtkm/worklet/WorkletMapField.h>
@@ -45,7 +44,6 @@ using std::endl;
 #define PI 3.14159
 #define H 1000
 #define W 1000
-
 
 
 vtkImageData *NewImage(int width, int height)
@@ -73,7 +71,7 @@ namespace vtkm {
 namespace exec {
 
     
-struct TransferFunction2 : public vtkm::exec::ExecutionObjectBase
+struct TransferFunction : public vtkm::exec::ExecutionObjectBase
 {
     vtkm::Float32   min;
     vtkm::Float32   max;
@@ -108,7 +106,7 @@ struct TransferFunction2 : public vtkm::exec::ExecutionObjectBase
     }
 
     VTKM_CONT
-    TransferFunction2()
+    TransferFunction()
     {
 
         vtkm::Int32  i;
@@ -157,9 +155,7 @@ struct TransferFunction2 : public vtkm::exec::ExecutionObjectBase
         }    
     }
      
-};
-
-
+};//Transfer function
 
 
 class Ray : public vtkm::exec::ExecutionObjectBase
@@ -193,10 +189,10 @@ class Ray : public vtkm::exec::ExecutionObjectBase
         ray = inRay;
     }
 
-};
+};//Ray
 
 
-struct Camera2 : public vtkm::exec::ExecutionObjectBase
+struct Camera : public vtkm::exec::ExecutionObjectBase
 {
 
   public:
@@ -219,43 +215,6 @@ struct Camera2 : public vtkm::exec::ExecutionObjectBase
         CalculateLook();
     }
 
-    VTKM_CONT
-    void SetNear(vtkm::Float32 n) { near = n; }
-
-    VTKM_CONT
-    void SetFar(vtkm::Float32 f) { far = f; }    
-
-    VTKM_CONT
-    void SetAngle(vtkm::Float32 a) { angle = a; }
-
-    VTKM_CONT
-    void SetPosition(vtkm::Vec<vtkm::Float32, 3> p)
-    {
-        for (int i = 0; i < 3; +i)
-            position[i] = p[i];
-    }
-
-    VTKM_CONT
-    void SetFocus(vtkm::Vec<vtkm::Float32, 3> f)
-    {
-        for (int i = 0; i < 3; +i)
-            focus[i] = f[i];
-    }
-
-    VTKM_CONT
-    void SetUp(vtkm::Vec<vtkm::Float32, 3> u)
-    {
-        for (int i = 0; i < 3; +i)
-            up[i] = u[i];
-    }
-
-    VTKM_CONT
-    void SetLook(vtkm::Vec<vtkm::Float32, 3> l)
-    {
-        for (int i = 0; i < 3; +i)
-            look[i] = l[i];
-    }
-
     VTKM_CONT 
     void CalculateLook()
     {
@@ -263,30 +222,10 @@ struct Camera2 : public vtkm::exec::ExecutionObjectBase
         vtkm::Normalize(look);
     }
 
-    VTKM_EXEC
-    vtkm::Float32 GetNear() { return near; }
-
-    VTKM_EXEC
-    vtkm::Float32 GetFar() { return far; }
-
-    VTKM_EXEC
-    vtkm::Float32 GetAngle() { return angle; }
-
-    VTKM_EXEC
-    vtkm::Vec<Float32, 3> GetPosition() { return position; }
-
-    VTKM_EXEC
-    vtkm::Vec<Float32, 3> GetFocus() { return focus; }
-
-    VTKM_EXEC
-    vtkm::Vec<Float32, 3> GetUp() { return up; }
-
-    VTKM_EXEC
-    vtkm::Vec<Float32, 3> GetLook() { return look; }
-};
+};//Camera
 
 
-struct Screen2 : public vtkm::exec::ExecutionObjectBase
+struct Screen : public vtkm::exec::ExecutionObjectBase
 {
 
   public:
@@ -309,30 +248,8 @@ struct Screen2 : public vtkm::exec::ExecutionObjectBase
            pBuffer.push_back(vtkm::make_Vec(0, 0, 0));
     }
 
-    VTKM_CONT
-    std::vector<vtkm::Vec<unsigned char, 3> > 
-    GetPixelBuffer() { return pBuffer; }
-
-    VTKM_CONT
-    void SetPixelBuffer(std::vector<vtkm::Vec<unsigned char, 3>> pixels)
-    {
-        pBuffer = pixels;
-    }
-
-    template <typename IdxType,
-              typename CharType>
-    VTKM_EXEC 
-    void SetPixelColor(const IdxType  &idx, 
-                       const CharType &r, 
-                       const CharType &g, 
-                       const CharType &b) const
-    {
-        pBuffer[idx] = vtkm::make_Vec(r, g, b);
-    }
     
-};
-
-
+};//Screen
 }//exec namespace
 
 
@@ -429,13 +346,13 @@ class RayCaster : public vtkm::worklet::WorkletMapField
         {
             vtkm::Int32 ptIdx[3];
 
-            FindGridPoint2(X, Y, Z, F, dims, curPos, ptIdx);
+            FindGridPoint(X, Y, Z, F, dims, curPos, ptIdx);
             vtkm::Int32 cellId = ptIdx[2]*(dims.Get(0)-1)*(dims.Get(1)-1)
                                 +ptIdx[1]*(dims.Get(0)-1)+ptIdx[0];
 
 
             vtkm::Float32 bbox[6];
-            BoundingBoxForCell2(X, Y, Z, dims, cellId, bbox);
+            BoundingBoxForCell(X, Y, Z, dims, cellId, bbox);
            
              
             if (bbox[0] == -1.0)
@@ -447,12 +364,13 @@ class RayCaster : public vtkm::worklet::WorkletMapField
             }
 
             
-            samples[i] = GetCellSample2(X, Y, Z, F, dims, curPos, bbox, ptIdx);
+            samples[i] = GetCellSample(X, Y, Z, F, dims, curPos, bbox, ptIdx);
             curPos    += stepSize*ray;
             ++i;
         }
 
          
+        //Composite samples
         unsigned char frontRGB[] = {0, 0, 0};
         vtkm::Float32 frontOp = 0.0;
              
@@ -488,13 +406,13 @@ class RayCaster : public vtkm::worklet::WorkletMapField
             
         }
          
+        //store the composite in this pixel
         pixel = vtkm::make_Vec(frontRGB[0], frontRGB[1], frontRGB[2]);
     }//operator
 
 
-
     VTKM_EXEC
-    vtkm::Float32 LERP2(vtkm::Float32 leftVal, 
+    vtkm::Float32 LERP(vtkm::Float32 leftVal, 
                        vtkm::Float32 rightVal, 
                        vtkm::Float32 leftPos, 
                        vtkm::Float32 rightPos, 
@@ -504,14 +422,13 @@ class RayCaster : public vtkm::worklet::WorkletMapField
     }
 
 
-
     template <typename FloatVecType,
               typename IntVecType,
               typename PosType,
               typename BBoxType, 
               typename IdxType>
     VTKM_EXEC
-    vtkm::Float32 GetCellSample2(const FloatVecType X, 
+    vtkm::Float32 GetCellSample(const FloatVecType X, 
                                 const FloatVecType Y, 
                                 const FloatVecType Z, 
                                 const FloatVecType F, 
@@ -535,11 +452,11 @@ class RayCaster : public vtkm::worklet::WorkletMapField
                                    +idx[1]*dims.Get(0)+idx[0];
 
         //TODO: use vtkm's LERP
-        vtkm::Float32 botFrontVal = LERP2(F.Get(botFrontLeft), F.Get(botFrontRight), bbox[0], 
+        vtkm::Float32 botFrontVal = LERP(F.Get(botFrontLeft), F.Get(botFrontRight), bbox[0], 
                                     bbox[1], curPos[0]);
-        vtkm::Float32 topFrontVal = LERP2(F.Get(topFrontLeft), F.Get(topFrontRight), bbox[0], 
+        vtkm::Float32 topFrontVal = LERP(F.Get(topFrontLeft), F.Get(topFrontRight), bbox[0], 
                                     bbox[1], curPos[0]);
-        vtkm::Float32 frontVal    = LERP2(botFrontVal, topFrontVal, bbox[2], 
+        vtkm::Float32 frontVal    = LERP(botFrontVal, topFrontVal, bbox[2], 
                                     bbox[3], curPos[1]);
     
         //LERP back face value    
@@ -557,17 +474,16 @@ class RayCaster : public vtkm::worklet::WorkletMapField
         vtkm::Int32 topBackLeft  = idx[2]*dims.Get(0)*dims.Get(1)
                                   +idx[1]*dims.Get(0)+idx[0];
    
-        vtkm::Float32 botBackVal = LERP2(F.Get(botBackLeft), F.Get(botBackRight), bbox[0], 
+        vtkm::Float32 botBackVal = LERP(F.Get(botBackLeft), F.Get(botBackRight), bbox[0], 
                                         bbox[1], curPos[0]);
-        vtkm::Float32 topBackVal = LERP2(F.Get(topBackLeft), F.Get(topBackRight), bbox[0], 
+        vtkm::Float32 topBackVal = LERP(F.Get(topBackLeft), F.Get(topBackRight), bbox[0], 
                                         bbox[1], curPos[0]);
-        vtkm::Float32 backVal    = LERP2(botBackVal, topBackVal, bbox[2], 
+        vtkm::Float32 backVal    = LERP(botBackVal, topBackVal, bbox[2], 
                                         bbox[3], curPos[1]);
     
         //LERP between the front and back faces
-        return LERP2(frontVal, backVal, bbox[4], bbox[5], curPos[2]);
-    }
-
+        return LERP(frontVal, backVal, bbox[4], bbox[5], curPos[2]);
+    }//GetCellSample
 
 
     template <typename FloatVecType,
@@ -575,7 +491,7 @@ class RayCaster : public vtkm::worklet::WorkletMapField
               typename BBoxType> 
     VTKM_EXEC
     void
-    BoundingBoxForCell2(const FloatVecType X,
+    BoundingBoxForCell(const FloatVecType X,
                         const FloatVecType Y, 
                         const FloatVecType Z, 
                         const IntVecType   dims,
@@ -605,8 +521,7 @@ class RayCaster : public vtkm::worklet::WorkletMapField
         bbox[3] = Y.Get(idx[1]+1);
         bbox[4] = Z.Get(idx[2]);
         bbox[5] = Z.Get(idx[2]+1);
-    }
-
+    }//BoundingBoxForCell
 
 
     template <typename FloatVecType,
@@ -614,7 +529,7 @@ class RayCaster : public vtkm::worklet::WorkletMapField
               typename SearchPtType,
               typename IdxType>
     VTKM_EXEC
-    void FindGridPoint2(const FloatVecType &X, 
+    void FindGridPoint(const FloatVecType &X, 
                         const FloatVecType &Y, 
                         const FloatVecType &Z, 
                         const FloatVecType &F, 
@@ -635,16 +550,15 @@ class RayCaster : public vtkm::worklet::WorkletMapField
             return;
         }
      
-        BinarySearch2(X, Y, Z, dims, searchPt, ptIdx);
-        
-    }
+        BinarySearch(X, Y, Z, dims, searchPt, ptIdx);
+    }//FindGridPoint
                        
 
     template <typename FloatVecType,
               typename IntType,
               typename SearchPtType>
     VTKM_EXEC
-    vtkm::Int32 SingleBinarySearch2(const FloatVecType &arr, 
+    vtkm::Int32 SingleBinarySearch(const FloatVecType &arr, 
                                     const IntType      &arr_len, 
                                     const SearchPtType &target) const
     {
@@ -674,7 +588,7 @@ class RayCaster : public vtkm::worklet::WorkletMapField
         }
 
         return s_mid - 1;
-    }
+    }//SingleBinarySearch
 
 
     /**
@@ -688,7 +602,7 @@ class RayCaster : public vtkm::worklet::WorkletMapField
               typename SearchPtType,
               typename IdxType>
     VTKM_EXEC
-    void BinarySearch2(const FloatVecType &X, 
+    void BinarySearch(const FloatVecType &X, 
                        const FloatVecType &Y, 
                        const FloatVecType &Z, 
                        const IntVecType   &dims, 
@@ -696,22 +610,21 @@ class RayCaster : public vtkm::worklet::WorkletMapField
                              IdxType      &ptIdx) const
     {
 
-        ptIdx[0] = SingleBinarySearch2(X, dims.Get(0), searchPt[0]);
-        ptIdx[1] = SingleBinarySearch2(Y, dims.Get(1), searchPt[1]);
-        ptIdx[2] = SingleBinarySearch2(Z, dims.Get(2), searchPt[2]);
-    }
+        ptIdx[0] = SingleBinarySearch(X, dims.Get(0), searchPt[0]);
+        ptIdx[1] = SingleBinarySearch(Y, dims.Get(1), searchPt[1]);
+        ptIdx[2] = SingleBinarySearch(Z, dims.Get(2), searchPt[2]);
+    }//BinarySearch
 
-};
-}
-
-}
+};//RayCaster
+}//worklet
+}//vtkm
 
 
 int main()
 {
     //Set up transfer function
     //TransferFunction tf = SetupTransferFunction();
-    vtkm::exec::TransferFunction2 tf2;
+    vtkm::exec::TransferFunction tf;
     //read in data
     vtkDataSetReader *rdr = 
      vtkDataSetReader::New();
@@ -742,12 +655,12 @@ int main()
     //vtkm code starts here
 
     //create screen
-    vtkm::exec::Screen2 screen;
+    vtkm::exec::Screen screen;
     screen.SetDimensions(width, height);
     screen.Initialize();
 
     //create camera
-    vtkm::exec::Camera2 camera;
+    vtkm::exec::Camera camera;
     camera.InitCamera();
 
     //create array handles 
@@ -771,7 +684,7 @@ int main()
     vtkm::worklet::RayCaster worklet;
     typedef vtkm::worklet::DispatcherMapField<vtkm::worklet::RayCaster> dispatcher;  
     dispatcher(worklet).Invoke(PHandle, XHandle, YHandle, ZHandle, FHandle, DHandle, 
-                               camera, screen, tf2);
+                               camera, screen, tf);
 
     //Copy the worklet buffer voer to the image buffer
     for (int i = 0; i < width*height; ++i)
