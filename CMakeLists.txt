@@ -30,7 +30,7 @@ set(VTK_DIR "/home/users/aom/VTK-build/")
 #Find the VTK-m package
 find_package(
   VTKm REQUIRED QUIET
-  OPTIONAL_COMPONENTS Serial CUDA TBB
+  OPTIONAL_COMPONENTS Serial CUDA TBB Rendering
   )
 
 find_package(VTK REQUIRED)

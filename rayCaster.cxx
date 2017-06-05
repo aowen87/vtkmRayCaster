@@ -25,7 +25,8 @@
 #include <vtkDataSetWriter.h>
 #include <vtkPNGWriter.h>
 
-
+#include <vtkm/io/reader/VTKDataSetReader.h>
+#include <vtkm/cont/DataSet.h>
 #include <vtkm/cont/ArrayHandle.h>
 #include <vtkm/cont/ArrayHandleIndex.h>
 #include <vtkm/worklet/WorkletMapField.h>
@@ -33,6 +34,9 @@
 #include <vtkm/exec/ExecutionObjectBase.h>
 #include <vtkm/VectorAnalysis.h>
 #include <vtkm/Math.h>
+
+#include <vtkm/rendering/CanvasRayTracer.h>
+
 
 using std::cerr;
 using std::cout;
@@ -42,8 +46,9 @@ using std::endl;
 #define NUM_SAMPLES 500
 #define BASE_SAMP_RATE 200
 #define PI 3.14159
-#define H 1000
-#define W 1000
+#define H 500
+#define W 500
+
 
 
 vtkImageData *NewImage(int width, int height)
@@ -260,6 +265,7 @@ class RayCaster : public vtkm::worklet::WorkletMapField
 {
 
   public:
+
     typedef void ControlSignature(FieldOut<>     pixels,
                                   WholeArrayIn<> X,
                                   WholeArrayIn<> Y,
@@ -407,19 +413,13 @@ class RayCaster : public vtkm::worklet::WorkletMapField
         }
          
         //store the composite in this pixel
-        pixel = vtkm::make_Vec(frontRGB[0], frontRGB[1], frontRGB[2]);
+        //pixel = vtkm::make_Vec(frontRGB[0], frontRGB[1], frontRGB[2]);
+        pixel[0] = frontRGB[0]/256.0;
+        pixel[1] = frontRGB[1]/256.0;
+        pixel[2] = frontRGB[2]/256.0;
+        pixel[3] = 1.0;
+      
     }//operator
-
-
-    VTKM_EXEC
-    vtkm::Float32 LERP(vtkm::Float32 leftVal, 
-                       vtkm::Float32 rightVal, 
-                       vtkm::Float32 leftPos, 
-                       vtkm::Float32 rightPos, 
-                       vtkm::Float32 curPos) const
-    {
-        return (leftVal + ( (curPos-leftPos)/(rightPos-leftPos) )*(rightVal - leftVal));    
-    }
 
 
     template <typename FloatVecType,
@@ -451,13 +451,13 @@ class RayCaster : public vtkm::worklet::WorkletMapField
         vtkm::Int32 topFrontLeft  = idx[2]*dims.Get(0)*dims.Get(1)
                                    +idx[1]*dims.Get(0)+idx[0];
 
-        //TODO: use vtkm's LERP
-        vtkm::Float32 botFrontVal = LERP(F.Get(botFrontLeft), F.Get(botFrontRight), bbox[0], 
-                                    bbox[1], curPos[0]);
-        vtkm::Float32 topFrontVal = LERP(F.Get(topFrontLeft), F.Get(topFrontRight), bbox[0], 
-                                    bbox[1], curPos[0]);
-        vtkm::Float32 frontVal    = LERP(botFrontVal, topFrontVal, bbox[2], 
-                                    bbox[3], curPos[1]);
+        vtkm::Float32 botFrontVal = vtkm::Lerp(F.Get(botFrontLeft), F.Get(botFrontRight), 
+                                              (curPos[0]-bbox[0])/(bbox[1] - bbox[0]));
+        vtkm::Float32 topFrontVal = vtkm::Lerp(F.Get(botFrontLeft), F.Get(topFrontRight), 
+                                              (curPos[0]-bbox[0])/(bbox[1] - bbox[0]));
+        vtkm::Float32 frontVal    = vtkm::Lerp(botFrontVal, topFrontVal, 
+                                              (curPos[1]-bbox[2])/(bbox[3] - bbox[2]));
+
     
         //LERP back face value    
         idx[1] -= 1;
@@ -474,15 +474,15 @@ class RayCaster : public vtkm::worklet::WorkletMapField
         vtkm::Int32 topBackLeft  = idx[2]*dims.Get(0)*dims.Get(1)
                                   +idx[1]*dims.Get(0)+idx[0];
    
-        vtkm::Float32 botBackVal = LERP(F.Get(botBackLeft), F.Get(botBackRight), bbox[0], 
-                                        bbox[1], curPos[0]);
-        vtkm::Float32 topBackVal = LERP(F.Get(topBackLeft), F.Get(topBackRight), bbox[0], 
-                                        bbox[1], curPos[0]);
-        vtkm::Float32 backVal    = LERP(botBackVal, topBackVal, bbox[2], 
-                                        bbox[3], curPos[1]);
+        vtkm::Float32 botBackVal = vtkm::Lerp(F.Get(botBackLeft), F.Get(botBackRight), 
+                                              (curPos[0]-bbox[0])/(bbox[1] - bbox[0]));
+        vtkm::Float32 topBackVal = vtkm::Lerp(F.Get(botBackLeft), F.Get(topBackRight), 
+                                              (curPos[0]-bbox[0])/(bbox[1] - bbox[0]));
+        vtkm::Float32 backVal    = vtkm::Lerp(botBackVal, topBackVal, 
+                                              (curPos[1]-bbox[2])/(bbox[3] - bbox[2]));
     
         //LERP between the front and back faces
-        return LERP(frontVal, backVal, bbox[4], bbox[5], curPos[2]);
+        return vtkm::Lerp(frontVal, backVal, (curPos[2]-bbox[4])/(bbox[5]-bbox[4]));
     }//GetCellSample
 
 
@@ -622,6 +622,17 @@ class RayCaster : public vtkm::worklet::WorkletMapField
 
 int main()
 {
+
+    
+    //vtkm::io::reader::VTKDataSetReader reader("astro512.vtk");
+    //vtkm::cont::DataSet inData = reader.ReadDataSet();
+    
+    //vtkm::rendering::CanvasGL canvas;//(1000, 1000);
+
+    //Set up a vtkm canvas and get the pixel buffer
+    vtkm::rendering::CanvasRayTracer canvas(W, H);
+    vtkm::Vec<vtkm::Float32, 4> * buffer = canvas.GetColorBuffer().GetStorage().GetArray();
+  
     //Set up transfer function
     //TransferFunction tf = SetupTransferFunction();
     vtkm::exec::TransferFunction tf;
@@ -647,8 +658,8 @@ int main()
     vtkm::Int32 width  = W;
     vtkm::Int32 height = H;
     vtkImageData  *image  = NewImage(width, height);
-    unsigned char *buffer = 
-      (unsigned char *) image->GetScalarPointer(0,0,0);
+    //unsigned char *buffer = 
+    //  (unsigned char *) image->GetScalarPointer(0,0,0);
     
     vtkm::Int32 npixels = width*height;
     
@@ -673,20 +684,24 @@ int main()
     vtkm::cont::ArrayHandle<vtkm::Float32> FHandle =
         vtkm::cont::make_ArrayHandle(F, dims[0]*dims[1]*dims[2]);
 
+    /*
     std::vector<vtkm::Vec<unsigned char, 3>> PBuff(width*height);
     vtkm::cont::ArrayHandle<vtkm::Vec<unsigned char, 3>> PHandle =
         vtkm::cont::make_ArrayHandle(PBuff);
-
+    */
     vtkm::cont::ArrayHandle<vtkm::Int32> DHandle =
         vtkm::cont::make_ArrayHandle(dims, 3);
 
     //Invoke the worklet
     vtkm::worklet::RayCaster worklet;
     typedef vtkm::worklet::DispatcherMapField<vtkm::worklet::RayCaster> dispatcher;  
-    dispatcher(worklet).Invoke(PHandle, XHandle, YHandle, ZHandle, FHandle, DHandle, 
+    //dispatcher(worklet).Invoke(PHandle, XHandle, YHandle, ZHandle, FHandle, DHandle, 
+    //                           camera, screen, tf);
+    dispatcher(worklet).Invoke(canvas.GetColorBuffer(), XHandle, YHandle, ZHandle, FHandle, DHandle, 
                                camera, screen, tf);
 
     //Copy the worklet buffer voer to the image buffer
+    /*
     for (int i = 0; i < width*height; ++i)
     {
         buffer[3*i]   = PHandle.GetPortalConstControl().Get(i)[0];
@@ -696,4 +711,6 @@ int main()
 
     WriteImage(image, "myOut");
     image->Delete();
+    */ 
+    canvas.SaveAs("out.ppm");
 }
