@@ -1,11 +1,18 @@
 /***
 * @author: Alister Maguire
 *
-* This is a conversion of my ray casting algorithm 
-* to rely on VTK-M. NOTE: It is currently set up
-* for one specific input (the camera position and
-* transfer function are specific to this data set). 
-*
+* This is a vtk-m version of a basic ray casting
+* algorithm. NOTES: 
+* 1. It is currently set up
+*    for one specific input (the camera position and
+*    transfer function are specific to this data set). 
+* 2. I'm using a binary search to search for points
+*    along the ray, which is not scalable. 
+* 3. The perspective is slightly warped, because I
+*    am using a lazy method for determining the start
+*    and stop positions of the rays being cast. (it's 
+*    not visually noticable with this data set, so it's
+*    not a huge deal) 
 ***/
 #include <iostream>
 #include <stdlib.h>
@@ -382,7 +389,6 @@ class RayCaster : public vtkm::worklet::WorkletMapField
         }
          
         //store the composite in this pixel
-        //pixel = vtkm::make_Vec(frontRGB[0], frontRGB[1], frontRGB[2]);
         pixel[0] = frontRGB[0]/256.0;
         pixel[1] = frontRGB[1]/256.0;
         pixel[2] = frontRGB[2]/256.0;
