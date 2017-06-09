@@ -39,11 +39,8 @@ using std::endl;
 #define W 500
 
 
-
-
 namespace vtkm {
 namespace exec {
-
     
 struct TransferFunction : public vtkm::exec::ExecutionObjectBase
 {
@@ -227,7 +224,6 @@ struct Screen : public vtkm::exec::ExecutionObjectBase
 }//exec namespace
 
 
-
 namespace worklet {
 
 class RayCaster : public vtkm::worklet::WorkletMapField
@@ -315,7 +311,6 @@ class RayCaster : public vtkm::worklet::WorkletMapField
 
         vtkm::Normalize(ray);
 
-
         //Retrieve samples
         vtkm::Vec<vtkm::Float32, 3> curPos(0);
         curPos = camera.position;
@@ -393,7 +388,6 @@ class RayCaster : public vtkm::worklet::WorkletMapField
         pixel[2] = frontRGB[2]/256.0;
         pixel[3] = 1.0;
     }//operator
-
 
 
     template <typename PosType,
@@ -624,6 +618,7 @@ int main()
     vtkm::exec::Camera camera;
     camera.InitCamera();
  
+    //get field
     vtkm::cont::ArrayHandle<vtkm::Float32> field;
     field = inData.GetField(0).GetData().Cast<vtkm::cont::ArrayHandle<vtkm::Float32>>();
 
@@ -633,6 +628,7 @@ int main()
 
     dispatcher(worklet).Invoke(canvas.GetColorBuffer(), camera, screen, tf);
 
+    //write image buffer
     canvas.SaveAs("out.ppm");
 
 }
