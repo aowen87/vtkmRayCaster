@@ -38,12 +38,12 @@ using std::cerr;
 using std::cout;
 using std::endl;
 
-#define TIMING false
+#define TIMING true
 #define NUM_SAMPLES 500
 #define BASE_SAMP_RATE 200
 #define PI 3.14159
-#define H 500
-#define W 500
+#define H 1000
+#define W 1000
 
 
 namespace vtkm {
@@ -631,8 +631,25 @@ int main()
     //Invoke the worklet
     vtkm::worklet::RayCaster worklet(coordinates, field);
     typedef vtkm::worklet::DispatcherMapField<vtkm::worklet::RayCaster> dispatcher;  
+    
+    //get timing info
+    struct timespec start, end;
+
+    if (TIMING)
+    {
+        clock_gettime(CLOCK_MONOTONIC, &start);
+    }
 
     dispatcher(worklet).Invoke(canvas.GetColorBuffer(), camera, screen, tf);
+
+    if (TIMING)
+    {
+        clock_gettime(CLOCK_MONOTONIC, &end);
+        double elapsed;
+        elapsed  = (end.tv_sec - start.tv_sec);
+        elapsed += (end.tv_nsec - start.tv_nsec)/1000000000.0;
+        cerr << "elapsed time: " << elapsed << endl;
+    }
 
     //write image buffer
     canvas.SaveAs("out.ppm");
