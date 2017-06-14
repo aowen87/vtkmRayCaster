@@ -201,34 +201,7 @@ struct Camera : public vtkm::exec::ExecutionObjectBase
     }
 
 };//Camera
-
-
-struct Screen : public vtkm::exec::ExecutionObjectBase
-{
-
-  public:
-    vtkm::Int32                              height;
-    vtkm::Int32                              width;
-    std::vector<vtkm::Vec<unsigned char, 3>> pBuffer;
-
-    VTKM_CONT
-    void SetDimensions(vtkm::UInt32 w, vtkm::UInt32 h) 
-    {
-        width  = w;
-        height = h;
-    }
-
-    VTKM_CONT
-    void Initialize()
-    {
-        vtkm::UInt32 npixels = width*height;
-        for (int i = 0; i < npixels; ++i)
-           pBuffer.push_back(vtkm::make_Vec(0, 0, 0));
-    }
-
-    
-};//Screen
-}//exec namespace
+};//exec
 
 
 namespace worklet {
@@ -266,34 +239,30 @@ class RayCaster : public vtkm::worklet::WorkletMapField
 
     typedef void ControlSignature(FieldOut<>     Pixels,
                                   ExecObject     Camera,
-                                  ExecObject     Screen,
                                   ExecObject     TransferFunction);
 
     typedef void ExecutionSignature(_1,
                                     _2,
                                     _3,
-                                    _4,
                                     InputIndex);
     typedef _1 InputDomain;
 
     template<typename CameraType,
-             typename ScreenType,
              typename PixelType,
              typename TransferFunctionType>
     VTKM_EXEC
     void operator() (PixelType                  &pixel,
                      const CameraType           &camera,
-                     const ScreenType           &screen,
                      const TransferFunctionType &tf,
                      const vtkm::Id             &idx) const
     {
         //Get the coordinates associated with this index
-        vtkm::Float32 xCoord = idx%screen.width;
-        vtkm::Float32 yCoord = (idx/screen.width)%screen.height;
+        vtkm::Float32 xCoord = idx%W;
+        vtkm::Float32 yCoord = (idx/W)%H;
 
         //calculate the ray for this pixel
-        vtkm::Float32 width  = screen.width;
-        vtkm::Float32 height = screen.height;
+        vtkm::Float32 width  = W;
+        vtkm::Float32 height = H;
 
         vtkm::Vec<vtkm::Float32, 3> ru;
         vtkm::Vec<vtkm::Float32, 3> rv;
@@ -615,11 +584,6 @@ int main()
     //TransferFunction tf = SetupTransferFunction();
     vtkm::exec::TransferFunction tf;
 
-    //create screen
-    vtkm::exec::Screen screen;
-    screen.SetDimensions(W, H);
-    screen.Initialize();
-
     //create camera
     vtkm::exec::Camera camera;
     camera.InitCamera();
@@ -640,7 +604,7 @@ int main()
         clock_gettime(CLOCK_MONOTONIC, &start);
     }
 
-    dispatcher(worklet).Invoke(canvas.GetColorBuffer(), camera, screen, tf);
+    dispatcher(worklet).Invoke(canvas.GetColorBuffer(), camera, tf);
 
     if (TIMING)
     {
